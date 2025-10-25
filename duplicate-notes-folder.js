@@ -98,36 +98,80 @@ function run(argv) {
 
 /**
  * Recursively find a folder by navigating through the path parts
+ * Searches across all accounts since Apple Notes UI doesn't match scripting structure
  */
 function findFolder(app, pathParts) {
-    // Start with top-level folders
-    let currentFolders = app.folders();
-    let currentFolder = null;
+    // Try to find the folder by searching all accounts
+    const accounts = app.accounts();
 
-    for (let i = 0; i < pathParts.length; i++) {
-        const targetName = pathParts[i];
-        let found = false;
+    for (let a = 0; a < accounts.length; a++) {
+        const account = accounts[a];
+        const accountFolders = account.folders();
 
-        for (let j = 0; j < currentFolders.length; j++) {
-            const folder = currentFolders[j];
-            if (folder.name() === targetName) {
-                currentFolder = folder;
-                found = true;
-
-                // If this is not the last part, get subfolders
-                if (i < pathParts.length - 1) {
-                    currentFolders = folder.folders();
-                }
-                break;
-            }
-        }
-
-        if (!found) {
-            return null;
+        // Try to match the path starting from this account's folders
+        const result = findFolderInList(accountFolders, pathParts, 0);
+        if (result) {
+            return result;
         }
     }
 
-    return currentFolder;
+    return null;
+}
+
+/**
+ * Recursively search for a folder path in a list of folders
+ */
+function findFolderInList(folders, pathParts, pathIndex) {
+    if (pathIndex >= pathParts.length) {
+        return null;
+    }
+
+    const targetName = pathParts[pathIndex];
+
+    for (let i = 0; i < folders.length; i++) {
+        try {
+            const folder = folders[i];
+            const folderName = folder.name();
+
+            if (folderName === targetName) {
+                // Found a match for this path part
+                if (pathIndex === pathParts.length - 1) {
+                    // This is the final folder we're looking for
+                    return folder;
+                } else {
+                    // Continue searching in subfolders
+                    try {
+                        const subfolders = folder.folders();
+                        const result = findFolderInList(subfolders, pathParts, pathIndex + 1);
+                        if (result) {
+                            return result;
+                        }
+                    } catch (e) {
+                        // Can't access subfolders, skip
+                    }
+                }
+            }
+
+            // Also search in this folder's subfolders in case the path doesn't start at the root
+            try {
+                const subfolders = folder.folders();
+                if (subfolders.length > 0) {
+                    const result = findFolderInList(subfolders, pathParts, pathIndex);
+                    if (result) {
+                        return result;
+                    }
+                }
+            } catch (e) {
+                // Can't access subfolders, skip
+            }
+        } catch (e) {
+            // Skip inaccessible/deleted folders
+            console.log(`  Warning: Skipping inaccessible folder at index ${i}`);
+            continue;
+        }
+    }
+
+    return null;
 }
 
 /**
