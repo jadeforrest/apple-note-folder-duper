@@ -49,9 +49,25 @@ function run(argv) {
         console.log(`Creating new folder: ${newFolderName}`);
 
         // Check if folder with this name already exists
-        const existingFolders = parentFolder.folders.whose({ name: newFolderName });
-        if (existingFolders.length > 0) {
-            throw new Error(`Folder "${newFolderName}" already exists. Please rename or delete it first.`);
+        try {
+            const existingFolders = parentFolder.folders();
+            for (let i = 0; i < existingFolders.length; i++) {
+                try {
+                    if (existingFolders[i].name() === newFolderName) {
+                        throw new Error(`Folder "${newFolderName}" already exists. Please rename or delete it first.`);
+                    }
+                } catch (e) {
+                    if (e.message && e.message.includes('already exists')) {
+                        throw e;
+                    }
+                    // Skip inaccessible folder
+                }
+            }
+        } catch (e) {
+            if (e.message && e.message.includes('already exists')) {
+                throw e;
+            }
+            // Can't check existing folders, proceed anyway
         }
 
         // Create the new folder
@@ -64,22 +80,20 @@ function run(argv) {
         const notes = targetFolder.notes();
         console.log(`Found ${notes.length} note(s) to copy`);
 
-        // Copy each note
+        // Copy each note using duplicate() to preserve all formatting
         let copiedCount = 0;
         for (let i = 0; i < notes.length; i++) {
             const note = notes[i];
             try {
                 const noteName = note.name();
-                const noteBody = note.body();
 
                 console.log(`  Copying note ${i + 1}/${notes.length}: ${noteName}`);
 
-                // Create a new note in the new folder
-                const newNote = app.Note({
-                    name: noteName,
-                    body: noteBody
-                });
-                newFolder.notes.push(newNote);
+                // Duplicate the note (creates it in same folder)
+                const duplicatedNote = note.duplicate();
+
+                // Move the duplicated note to the new folder
+                duplicatedNote.move({to: newFolder});
 
                 copiedCount++;
             } catch (noteError) {
