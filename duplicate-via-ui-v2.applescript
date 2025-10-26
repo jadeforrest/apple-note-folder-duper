@@ -29,6 +29,7 @@ on run argv
 
 		set targetFolder to missing value
 		set parentFolder to missing value
+		set targetAccount to missing value
 
 		-- Search for the folder by navigating through each level
 		repeat with acc in accounts
@@ -58,6 +59,7 @@ on run argv
 				-- If this is the target (last level), we're done
 				if i = (count of pathParts) then
 					set targetFolder to foundAtLevel
+					set targetAccount to acc
 				else
 					-- Otherwise, set up for next level
 					set parentFolder to foundAtLevel
@@ -81,8 +83,13 @@ on run argv
 		log "Creating new folder: " & newFolderName
 
 		-- Try to create the folder - if it exists, this will error
+		-- If parentFolder is missing value (top-level), create at account level
 		try
-			set newFolder to make new folder at parentFolder with properties {name:newFolderName}
+			if parentFolder is missing value then
+				set newFolder to make new folder at targetAccount with properties {name:newFolderName}
+			else
+				set newFolder to make new folder at parentFolder with properties {name:newFolderName}
+			end if
 			delay 0.5
 		on error errMsg
 			if errMsg contains "Duplicate" or errMsg contains "duplicate" or errMsg contains "already exists" then
@@ -94,96 +101,139 @@ on run argv
 			end if
 		end try
 
-		-- Get notes
-		set notesList to notes of targetFolder
-		set noteCount to count of notesList
-		log "Found " & noteCount & " note(s) to copy"
+		-- Ensure we're in a clean state before starting
+		activate
+		delay 0.5
 
-		-- Store note names for reference
-		set noteNames to {}
-		repeat with theNote in notesList
-			set end of noteNames to (name of theNote)
-		end repeat
+		-- Clear any selection or focus from folder creation
+		tell application "System Events"
+			tell process "Notes"
+				key code 53 -- Escape key to clear any dialogs or selections
+				delay 0.3
+			end tell
+		end tell
 
-		-- Copy each note using UI automation with explicit clicking
-		set copiedCount to 0
-		repeat with i from 1 to noteCount
-			try
-				set noteName to item i of noteNames
-				log "  Copying note " & i & "/" & noteCount & ": " & noteName
+		show targetFolder
+		delay 1.5
 
-				-- Ensure Notes is activated and visible
-				activate
-				delay 0.5
-
-				-- Show the source folder
-				show targetFolder
-				delay 1
-
-				-- Use UI scripting to click on the specific note by name
-				tell application "System Events"
-					tell process "Notes"
-						-- Click on the note list to ensure it's focused
-						try
-							-- Find and click the note with this name
-							-- This is a bit fragile but should work for the note list
-							set frontmost to true
-							delay 0.5
-
-							-- Use keyboard navigation to select the first note, then navigate
-							-- This is more reliable than trying to click
-							keystroke "1" using {command down}
-							delay 0.5
-
-							-- Navigate down to the correct note (i-1 times)
-							repeat (i - 1) times
-								key code 125 -- down arrow
-								delay 0.2
-							end repeat
-							delay 0.5
-
-							-- Tab to move focus from note list to content area
-							key code 48 -- tab key
-							delay 0.5
-
-							-- Now copy the note content (while still in Notes process)
-							keystroke "a" using command down
-							delay 0.5
-							keystroke "c" using command down
-							delay 0.5
-						end try
-					end tell
-				end tell
-
-				-- Switch to the destination folder
-				activate
-				delay 0.5
-				show newFolder
-				delay 1
-
-				-- Create a new note and paste
-				tell application "System Events"
-					tell process "Notes"
-						set frontmost to true
-						delay 0.5
-						keystroke "n" using command down
-						delay 1
-						keystroke "v" using command down
-						delay 0.5
-					end tell
-				end tell
-
-				set copiedCount to copiedCount + 1
-
-			on error errMsg
-				log "  Warning: Failed to copy note " & i & ": " & errMsg
-			end try
-		end repeat
+		-- Recursively copy folder contents
+		set totalCopied to 0
+		set totalCopied to my copyFolderRecursive(targetFolder, newFolder, totalCopied, "")
 
 		log ""
-		log "Success! Created folder \"" & newFolderName & "\" with " & copiedCount & " note(s)"
+		log "Success! Created folder \"" & newFolderName & "\" with " & totalCopied & " note(s) total"
 	end tell
 end run
+
+-- Recursively copy notes and subfolders
+on copyFolderRecursive(sourceFolder, destFolder, totalCopied, indent)
+	tell application "Notes"
+		-- Get notes from this folder
+		set notesList to notes of sourceFolder
+		set noteCount to count of notesList
+
+		if noteCount > 0 then
+			log indent & "Copying " & noteCount & " note(s) from " & (name of sourceFolder)
+
+			-- Copy each note using UI automation
+			repeat with i from 1 to noteCount
+				try
+					set theNote to item i of notesList
+					set noteName to (name of theNote) as text
+					log indent & "  [" & i & "/" & noteCount & "] " & noteName
+
+					-- Ensure Notes is fully activated and visible
+					activate
+					delay 0.5
+
+					-- Show the specific note directly
+					show theNote
+					delay 3
+
+					-- Use UI scripting to select and copy the note content
+					tell application "System Events"
+						tell process "Notes"
+							try
+								set frontmost to true
+								delay 0.8
+
+								-- Only use Tab for the very first note (to move from folder list to content)
+								-- For subsequent notes, show theNote already focuses correctly
+								set usedTab to false
+								if i = 1 and totalCopied = 0 then
+									key code 48 -- Tab
+									delay 0.8
+									set usedTab to true
+								end if
+
+								-- Select all content
+								keystroke "a" using command down
+								delay 0.8
+
+								-- Copy the selected content
+								keystroke "c" using command down
+								delay 0.8
+
+								-- If we used Tab, undo it to remove the tab character from the original note
+								if usedTab then
+									keystroke "z" using command down -- Undo
+									delay 0.5
+								end if
+							end try
+						end tell
+					end tell
+
+					-- Switch to the destination folder
+					activate
+					delay 0.5
+					show destFolder
+					delay 1.5
+
+					-- Create a new note and paste
+					tell application "System Events"
+						tell process "Notes"
+							set frontmost to true
+							delay 0.5
+							keystroke "n" using command down
+							delay 1.5
+							keystroke "v" using command down
+							delay 0.8
+						end tell
+					end tell
+
+					set totalCopied to totalCopied + 1
+
+				on error errMsg
+					log indent & "  Warning: Failed to copy note " & i & ": " & errMsg
+				end try
+			end repeat
+		end if
+
+		-- Now process subfolders recursively
+		set subfolders to folders of sourceFolder
+		if (count of subfolders) > 0 then
+			log indent & "Processing " & (count of subfolders) & " subfolder(s) in " & (name of sourceFolder)
+
+			repeat with subFolder in subfolders
+				try
+					set subFolderName to (name of subFolder) as text
+					log indent & "  Creating subfolder: " & subFolderName
+
+					-- Create matching subfolder in destination (no asterisk!)
+					set newSubFolder to make new folder at destFolder with properties {name:subFolderName}
+					delay 0.5
+
+					-- Recursively copy this subfolder's contents
+					set totalCopied to my copyFolderRecursive(subFolder, newSubFolder, totalCopied, indent & "  ")
+				on error errMsg
+					log indent & "  Warning: Failed to process subfolder " & subFolderName & ": " & errMsg
+				end try
+			end repeat
+		end if
+	end tell
+
+	return totalCopied
+end copyFolderRecursive
 
 on splitPath(folderPath)
 	set oldDelimiters to AppleScript's text item delimiters
