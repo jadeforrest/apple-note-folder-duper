@@ -15,14 +15,12 @@ on run argv
 	set folderPath to item 1 of argv
 	set pathParts to my splitPath(folderPath)
 
-	if (count of pathParts) ≠ 2 then
-		log "Error: Currently only supports two-level paths like /Parent/Child"
+	if (count of pathParts) = 0 then
+		log "Error: Please provide a valid folder path"
 		error number 1
 	end if
 
-	set parentName to (item 1 of pathParts) as text
-	set targetName to (item 2 of pathParts) as text
-
+	set targetName to (item -1 of pathParts) as text
 	log "Looking for folder: " & folderPath
 
 	tell application "Notes"
@@ -32,28 +30,39 @@ on run argv
 		set targetFolder to missing value
 		set parentFolder to missing value
 
-		-- Search for the folder
+		-- Search for the folder by navigating through each level
 		repeat with acc in accounts
-			set topFolders to folders of acc
+			set currentFolders to folders of acc
+			set foundFolder to missing value
 
-			repeat with aFolder in topFolders
-				try
-					if (name of aFolder) = parentName then
-						set parentFolder to aFolder
-						set subfolders to folders of aFolder
+			-- Navigate through each level of the path
+			repeat with i from 1 to (count of pathParts)
+				set levelName to (item i of pathParts) as text
+				set foundAtLevel to missing value
 
-						repeat with subFolder in subfolders
-							try
-								if (name of subFolder) = targetName then
-									set targetFolder to subFolder
-									exit repeat
-								end if
-							end try
-						end repeat
-					end if
-				end try
+				-- Search for this level's folder name
+				repeat with aFolder in currentFolders
+					try
+						if (name of aFolder) = levelName then
+							set foundAtLevel to aFolder
+							exit repeat
+						end if
+					end try
+				end repeat
 
-				if targetFolder is not missing value then exit repeat
+				-- If we didn't find this level, break out
+				if foundAtLevel is missing value then
+					exit repeat
+				end if
+
+				-- If this is the target (last level), we're done
+				if i = (count of pathParts) then
+					set targetFolder to foundAtLevel
+				else
+					-- Otherwise, set up for next level
+					set parentFolder to foundAtLevel
+					set currentFolders to folders of foundAtLevel
+				end if
 			end repeat
 
 			if targetFolder is not missing value then exit repeat
@@ -103,9 +112,13 @@ on run argv
 				set noteName to item i of noteNames
 				log "  Copying note " & i & "/" & noteCount & ": " & noteName
 
+				-- Ensure Notes is activated and visible
+				activate
+				delay 0.5
+
 				-- Show the source folder
 				show targetFolder
-				delay 0.8
+				delay 1
 
 				-- Use UI scripting to click on the specific note by name
 				tell application "System Events"
@@ -115,41 +128,49 @@ on run argv
 							-- Find and click the note with this name
 							-- This is a bit fragile but should work for the note list
 							set frontmost to true
-							delay 0.3
+							delay 0.5
 
 							-- Use keyboard navigation to select the first note, then navigate
 							-- This is more reliable than trying to click
 							keystroke "1" using {command down}
-							delay 0.3
+							delay 0.5
 
 							-- Navigate down to the correct note (i-1 times)
 							repeat (i - 1) times
 								key code 125 -- down arrow
 								delay 0.2
 							end repeat
-							delay 0.3
+							delay 0.5
+
+							-- Tab to move focus from note list to content area
+							key code 48 -- tab key
+							delay 0.5
+
+							-- Now copy the note content (while still in Notes process)
+							keystroke "a" using command down
+							delay 0.5
+							keystroke "c" using command down
+							delay 0.5
 						end try
 					end tell
 				end tell
 
-				-- Now copy the note content
-				tell application "System Events"
-					keystroke "a" using command down
-					delay 0.3
-					keystroke "c" using command down
-					delay 0.5
-				end tell
-
 				-- Switch to the destination folder
+				activate
+				delay 0.5
 				show newFolder
-				delay 0.8
+				delay 1
 
 				-- Create a new note and paste
 				tell application "System Events"
-					keystroke "n" using command down
-					delay 1
-					keystroke "v" using command down
-					delay 0.5
+					tell process "Notes"
+						set frontmost to true
+						delay 0.5
+						keystroke "n" using command down
+						delay 1
+						keystroke "v" using command down
+						delay 0.5
+					end tell
 				end tell
 
 				set copiedCount to copiedCount + 1
