@@ -173,12 +173,6 @@ on copyFolderRecursive(sourceFolder, destFolder, totalCopied, indent)
 								-- Copy the selected content
 								keystroke "c" using command down
 								delay 0.8
-
-								-- If we used Tab, undo it to remove the tab character from the original note
-								if usedTab then
-									keystroke "z" using command down -- Undo
-									delay 0.5
-								end if
 							end try
 						end tell
 					end tell
