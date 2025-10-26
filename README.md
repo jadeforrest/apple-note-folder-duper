@@ -1,15 +1,16 @@
 # Apple Notes Folder Duplicator
 
-A utility tool for safely duplicating Apple Notes folders with all their contents.
+A utility tool for safely duplicating Apple Notes folders with all their contents, including nested subfolders.
 
 ## Description
 
-This script creates a deep copy of an Apple Notes folder, duplicating all notes within it. The new folder is created with an asterisk suffix (e.g., "Test" becomes "Test*").
+This script creates a deep copy of an Apple Notes folder, recursively duplicating all notes and subfolders within it. The new folder is created with an asterisk suffix (e.g., "Test" becomes "Test*"). Uses UI automation to ensure perfect formatting preservation.
 
 ## Features
 
-- Safe folder duplication using Apple's JXA (JavaScript for Automation)
-- Preserves all note content and formatting
+- Safe folder duplication using AppleScript and UI automation
+- Perfectly preserves all note content and formatting
+- Recursively copies nested subfolders
 - Creates the duplicate in the same parent folder
 - Comprehensive error handling and validation
 - Prevents accidental overwrites
@@ -17,7 +18,8 @@ This script creates a deep copy of an Apple Notes folder, duplicating all notes 
 ## Requirements
 
 - macOS with Apple Notes installed
-- JavaScript for Automation (JXA) - included with macOS
+- AppleScript - included with macOS
+- Accessibility permissions for Terminal or your script runner
 
 ## Installation
 
@@ -25,7 +27,7 @@ This script creates a deep copy of an Apple Notes folder, duplicating all notes 
 2. Make the script executable:
 
 ```bash
-chmod +x duplicate-notes-folder.js
+chmod +x duplicate-apple-notes-folder.applescript
 ```
 
 ## Usage
@@ -33,7 +35,7 @@ chmod +x duplicate-notes-folder.js
 Basic usage:
 
 ```bash
-./duplicate-notes-folder.js "/ParentFolder/FolderName"
+./duplicate-apple-notes-folder.applescript "/ParentFolder/FolderName"
 ```
 
 ### Examples
@@ -41,15 +43,15 @@ Basic usage:
 Duplicate a folder called "Test" inside "Personal":
 
 ```bash
-./duplicate-notes-folder.js "/Personal/Test"
+./duplicate-apple-notes-folder.applescript "/Personal/Test"
 ```
 
-This will create a new folder called "Test*" inside "Personal" with copies of all notes from "Test".
+This will create a new folder called "Test*" inside "Personal" with copies of all notes and subfolders from "Test".
 
 Duplicate a top-level folder:
 
 ```bash
-./duplicate-notes-folder.js "/MyFolder"
+./duplicate-apple-notes-folder.applescript "/MyFolder"
 ```
 
 ### Path Format
@@ -63,8 +65,9 @@ Duplicate a top-level folder:
 1. The script parses the folder path you provide
 2. It navigates through Apple Notes to find the target folder
 3. It creates a new folder with the same name plus an asterisk (*)
-4. It copies all notes from the source folder to the new folder
-5. It preserves note names and content
+4. It recursively copies all notes and subfolders from the source to the new folder
+5. It uses UI automation to select, copy, and paste notes to preserve perfect formatting
+6. It preserves note names, content, and folder structure
 
 ## Safety Features
 
@@ -76,9 +79,9 @@ Duplicate a top-level folder:
 
 ## Limitations
 
-- Currently duplicates notes within a single folder (not nested subfolders)
 - Does not copy folder-specific metadata (like color or icon)
 - Requires the source folder to exist in Apple Notes
+- Uses UI automation which requires the Notes app to be visible during operation
 
 ## Troubleshooting
 
@@ -96,12 +99,14 @@ Duplicate a top-level folder:
 ### Permission errors
 
 - The first time you run the script, macOS may ask for permission to access Notes
-- Grant the permission in System Preferences > Privacy & Security
+- You may also need to grant Accessibility permissions for UI automation
+- Grant the permissions in System Settings > Privacy & Security > Accessibility
 
 ## Technical Details
 
-- Written in JXA (JavaScript for Automation)
+- Written in AppleScript with UI automation
 - Uses Apple's official Notes.app scripting interface
+- Uses System Events for keyboard automation to preserve formatting
 - Safe and non-destructive operation
 - No direct database manipulation
 
@@ -109,11 +114,11 @@ Duplicate a top-level folder:
 
 Possible improvements for future versions:
 
-- Support for nested subfolder duplication
 - Custom naming for duplicated folders
 - Progress bar for large folders
 - Selective note copying (filter by criteria)
 - Batch folder duplication
+- Faster operation without UI automation
 
 ## Contributing
 
